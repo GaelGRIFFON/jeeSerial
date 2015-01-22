@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<info>
+    <id>jeeserial</id>
+    <name>jeeSerial</name>
+    <description>Plugin pour utiliser les ports séries</description>
+    <icon>fa fa-bolt</icon>
+    <licence>AGPL</licence>
+    <author>Gael GRIFFON</author>
+    <installation>Dans le cas ou un modem série est utilisé, ajouter le port au groupe dialout (sudo chgrp dialout /dev/*NOM_DU_PORT*)</installation>
+    <require>1.10</require>
+    <version>1.7</version>
+    <category>automation protocol</category>
+    <allowRemote>1</allowRemote>
+</info>
