@@ -18,9 +18,6 @@ import urllib2
 import socket
 import threading
  
-# Default log level
-gLogLevel = logging.ERROR
-
 ###
 # Paramètres par défaut:
 #
@@ -31,7 +28,7 @@ gOutput = sys.__stdout__
 # En cas d'utilisation sur un module distant
 gExternalIP = ''
 gCleAPI = ''
-gDebug = ''
+gLogLevel = logging.ERROR
 gRealPath = ''
 # Port du socket pour les requêtes entrantes
 gSockPort = 55002
@@ -120,6 +117,7 @@ class JeeSerial:
 			self._log.info("Ouverture du modem série ouvert avec succès")
 		except:
 			error = "Erreur d'ouverture du modem série '%s' : %s" % (self._device, traceback.format_exc())
+			self._log.error(error)
 			raise JeeSerialException(error)
 	
 	def openSocket(self):
@@ -133,6 +131,7 @@ class JeeSerial:
 			self._log.info("Ouverture du socket avec succès")
 		except:
 			error = "Erreur d'ouverture du socket : %s" % (traceback.format_exc())
+			self._log.error(error)
 			raise JeeSerialException(error)
 	
 	def closeSerial(self):
@@ -151,6 +150,7 @@ class JeeSerial:
 		""" Fin du programme
 		"""
 		print "Terminating..."
+		self._log.info("Terminating...")
 		# Fermeture du port série et du socket
 		self.closeSerial()
 		self.closeSocket()
@@ -187,14 +187,18 @@ class JeeSerial:
 			
 			if (_SendData != ""):
 				self.cmd += _SendData
-				if (self._debug == '1'):
-					print self.cmd
+				
+				self._log.info(self.cmd)
+				
 				if(self._externalip != ""):
 					try:
 						# Si on est à distance: on fait une requête HTTP via l'URL construite
 						response = urllib2.urlopen(self.cmd)
 					except Exception, e:
 						errorCom = "Connection error '%s'" % e
+						self._log.error(errorCom)
+						raise JeeSerialException(errorCom)
+						
 				else:
 					# Si on est en local: on lance la commande construite
 					self.process = subprocess.Popen(self.cmd, shell=True)
@@ -207,11 +211,16 @@ class JeeSerial:
 				sys.stderr.write("Waiting for connection on %s...\n" % self._sockport)
 				# Bloque ici jusqu'à avoir une connexion entrante
 				connection, addr = self._sock.accept()
-				sys.stderr.write('Connected by %s\n' % (addr,))				
+				sys.stderr.write('Connected by %s\n' % (addr,))
+				self._log.info('Connected by %s\n' % (addr,))
 			except KeyboardInterrupt:
+				error = "Interruption au clavier"
+				self._log.error(error)
+				raise JeeSerialException(error)
 				break
 			except socket.error, msg:
 				error = "Erreur sur le socket: %s" % msg
+				self._log.error(error)
 				raise JeeSerialException(error)
 			
 			# Lorsqu'une connexion entrante est établie, on attend les données
@@ -222,8 +231,7 @@ class JeeSerial:
 					if not data:
 						break
 					
-					if (self._debug == '1'):
-						sys.stderr.write(data)
+					sys.stderr.write(data)
 					
 					# ... On acquiert le doit d'écrire sur le port série
 					self._write_lock.acquire()
@@ -235,12 +243,15 @@ class JeeSerial:
 						self._write_lock.release()
 				
 				except socket.error, msg:
-					sys.stderr.write('ERROR: %s\n' % msg)
+					error = "ERROR: %s\n" % msg
+					self._log.error(error)
+					sys.stderr.write(error)
 					# probably got disconnected
 					break
 			
 			# Lorsque la connexion se termine, elle est fermée puis on reboucle en attendant une nouvelle connexion
 			sys.stderr.write('Disconnected\n')
+			self._log.info('Disconnected\n')
 			connection.close()
 	
 	def checkAlive(self):
@@ -318,7 +329,7 @@ if __name__ == "__main__":
 	parser.add_option("-p", "--port", dest="port", help="port du modem")
 	parser.add_option("-e", "--externalip", dest="externalip", help="ip de jeedom")
 	parser.add_option("-c", "--cleapi", dest="cleapi", help="clé api de jeedom")
-	parser.add_option("-d", "--debug", dest="debug", help="mode debug")
+	parser.add_option("-d", "--debug", dest="debug", help="niveau de log: DEBUG: 10, INFO: 20, WARNING: 30")
 	parser.add_option("-r", "--realpath", dest="realpath", help="path usr")
 	parser.add_option("-s", "--socket", dest="sock", help="socket port")
 	(options, args) = parser.parse_args()
@@ -329,40 +340,40 @@ if __name__ == "__main__":
 				gDeviceName = options.port
 			except:
 				error = "Impossible de changer le port %s" % options.port
-				raise TeleinfoException(error)
+				raise JeeSerialException(error)
 	if options.externalip:
 			try:
 				gExternalIP = options.externalip
 			except:
 				error = "Impossible de changer l'ip %s" % options.externalip
-				raise TeleinfoException(error)
+				raise JeeSerialException(error)
 	if options.debug:
 			try:
-				gDebug = options.debug
+				gLogLevel = options.debug
 			except:
 				error = "Impossible de se mettre en mode débug %s" % options.debug
-				#raise TeleinfoException(error)
+				raise JeeSerialException(error)
 	if options.cleapi:
 			try:
 				gCleAPI = options.cleapi
 			except:
 				error = "Impossible de changer la clé API %s" % options.cleapi
-				raise TeleinfoException(error)
+				raise JeeSerialException(error)
 	if options.realpath:
 			try:
 				gRealPath = options.realpath
 			except:
 				error = "Impossible de changer le chemin réel %s" % options.realpath
-				raise TeleinfoException(error)
+				raise JeeSerialException(error)
 	
 	if options.sock:
 			try:
 				gSockPort = int(options.sock)
 			except:
 				error = "Impossible de changer port du socket %s" % options.sock
-				raise TeleinfoException(error)
+				raise JeeSerialException(error)
 	
 	# Création d'une instance de JeeSerial avec les paramètres passés
-	jeeSerial = JeeSerial(gDeviceName, gExternalIP, gCleAPI, gDebug, gRealPath, gSockPort)
+	jeeSerial = JeeSerial(gDeviceName, gExternalIP, gCleAPI, gLogLevel, gRealPath, gSockPort)
 	# Lancement du programme principale de l'instance
 	jeeSerial.run()
